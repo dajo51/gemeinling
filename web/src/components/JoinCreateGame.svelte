@@ -1,6 +1,7 @@
 <script>
 	import { db } from '$lib/firebase/firebase';
 	import { doc, getDoc } from 'firebase/firestore';
+	import { goto } from '$app/navigation';
 
 	let gameId = '';
 	let gameFound = '';
@@ -11,14 +12,8 @@
 			const docRef = doc(db, 'games', lobbyId);
 			const docSnap = await getDoc(docRef);
 			if (docSnap.exists()) {
-				let data = docSnap.data();
-				console.log(docSnap.data());
 				gameFound = 'found';
-				return {
-					data
-				};
 			} else {
-				console.log('No such document!');
 				gameFound = 'notFound';
 			}
 		} catch (error) {
@@ -31,8 +26,11 @@
 	}
 
 	async function joinLobby() {
-		lobbyData = await getLobby(gameId);
-		console.log('lobbydata', lobbyData);
+		await getLobby(gameId);
+
+		if (gameFound === 'found') {
+			await goto(`/game/${gameId}`);
+		}
 	}
 </script>
 
@@ -52,10 +50,20 @@
 			>Neues Spiel erstellen</button
 		>
 		{#if gameFound === 'notFound'}
-			<p class="text-red-500">Spiel ID nicht gefunden!</p>
+			<div
+				class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-2"
+				role="alert"
+			>
+				<span class="block sm:inline text-center">Spiel ID nicht gefunden!</span>
+			</div>
 		{/if}
 		{#if gameFound === 'found'}
-			<p class="text-green-500">Spiel gefunden! Verbinde..</p>
+			<div
+				class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mt-2"
+				role="alert"
+			>
+				<span class="block sm:inline">Spiel gefunden! Verbinde...</span>
+			</div>
 		{/if}
 	</div>
 </main>
