@@ -1,6 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { deleteApp, getApp, getApps, initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getDatabase } from 'firebase/database';
 
 const firebaseConfig = {
 	apiKey: import.meta.env.VITE_API_KEY,
@@ -22,3 +23,4 @@ if (!getApps().length) {
 }
 
 export const db = getFirestore(firebaseApp);
+export const realtimeDb = getDatabase(firebaseApp);

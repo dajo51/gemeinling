@@ -44,7 +44,7 @@
 			class="border p-2 rounded w-full mb-4"
 		/>
 		<button class="bg-blue-500 text-white rounded p-2 w-full mb-2" on:click={joinLobby}
-			>Spiel ID eingeben</button
+			>Spiel beitreten</button
 		>
 		<button class="bg-green-500 text-white rounded p-2 w-full" on:click={createLobby}
 			>Neues Spiel erstellen</button
