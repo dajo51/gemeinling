@@ -3,10 +3,10 @@
 	import { ref, onValue, set } from 'firebase/database';
 	import { goto } from '$app/navigation';
 
+	let playerName = '';
 	let gameId = '';
 	let gameFound = '';
 	let playerNameMissing = false;
-	let playerName = '';
 	let lobbyData;
 
 	const generateGameId = (length) => {
@@ -30,8 +30,8 @@
 
 	async function getLobby(gameId) {
 		onValue(ref(realtimeDb, gameId), (snapshot) => {
-			const data = snapshot.val();
-			if (data) {
+			lobbyData = snapshot.val();
+			if (lobbyData) {
 				gameFound = 'found';
 			} else {
 				gameFound = 'notFound';
@@ -49,7 +49,7 @@
 		try {
 			const newGameId = await createRealtimeGameRoom({ playerName });
 			console.log(`New game room created with ID: ${newGameId}`);
-			await goto(`/game/${newGameId}`);
+			goto(`/game/${newGameId}`);
 		} catch (error) {
 			console.error('Failed to create game room:', error);
 		}
@@ -62,8 +62,14 @@
 			return;
 		}
 		await getLobby(gameId);
+
 		if (gameFound === 'found') {
-			await goto(`/game/${gameId}`);
+			const lobbyRef = ref(realtimeDb, gameId);
+			if (!lobbyData.players.some((player) => player.name === playerName)) {
+				const updatedPlayers = [...lobbyData.players, { name: playerName, points: 0 }];
+				set(lobbyRef, { ...lobbyData, players: updatedPlayers });
+			}
+			goto(`/game/${gameId}`);
 		}
 	}
 </script>
@@ -115,7 +121,3 @@
 		{/if}
 	</div>
 </main>
-
-<style>
-	/* Custom styles if needed */
-</style>
