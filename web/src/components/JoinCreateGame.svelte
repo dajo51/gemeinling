@@ -22,7 +22,7 @@
 	}
 
 	async function createLobby() {
-		// Logic to create a new lobby in Firebase
+		await goto(`/new-game`);
 	}
 
 	async function joinLobby() {

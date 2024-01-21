@@ -2,4 +2,4 @@
 	export let data;
 </script>
 
-<h1>{data.slug}</h1>
+<h1>{data.id}</h1>
