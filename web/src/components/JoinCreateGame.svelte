@@ -2,6 +2,7 @@
 	import { realtimeDb } from '$lib/firebase/firebase';
 	import { ref, onValue, set } from 'firebase/database';
 	import { goto } from '$app/navigation';
+	import { currentPlayerName } from '$lib/stores';
 
 	let playerName = '';
 	let gameId = '';
@@ -49,6 +50,7 @@
 		try {
 			const newGameId = await createRealtimeGameRoom({ playerName });
 			console.log(`New game room created with ID: ${newGameId}`);
+			currentPlayerName.set(playerName);
 			goto(`/game/${newGameId}`);
 		} catch (error) {
 			console.error('Failed to create game room:', error);
@@ -64,11 +66,12 @@
 		await getLobby(gameId);
 
 		if (gameFound === 'found') {
-			const lobbyRef = ref(realtimeDb, gameId);
-			if (!lobbyData.players.some((player) => player.name === playerName)) {
-				const updatedPlayers = [...lobbyData.players, { name: playerName, points: 0 }];
-				set(lobbyRef, { ...lobbyData, players: updatedPlayers });
-			}
+			// const lobbyRef = ref(realtimeDb, gameId);
+			// if (!lobbyData.players.some((player) => player.name === playerName)) {
+			// 	const updatedPlayers = [...lobbyData.players, { name: playerName, points: 0 }];
+			// 	set(lobbyRef, { ...lobbyData, players: updatedPlayers });
+			// }
+			currentPlayerName.set(playerName);
 			goto(`/game/${gameId}`);
 		}
 	}
