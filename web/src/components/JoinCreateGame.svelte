@@ -34,8 +34,10 @@
 			lobbyData = snapshot.val();
 			if (lobbyData) {
 				gameFound = 'found';
+				return;
 			} else {
 				gameFound = 'notFound';
+				return;
 			}
 		});
 	}
@@ -66,11 +68,11 @@
 		await getLobby(gameId);
 
 		if (gameFound === 'found') {
-			// const lobbyRef = ref(realtimeDb, gameId);
-			// if (!lobbyData.players.some((player) => player.name === playerName)) {
-			// 	const updatedPlayers = [...lobbyData.players, { name: playerName, points: 0 }];
-			// 	set(lobbyRef, { ...lobbyData, players: updatedPlayers });
-			// }
+			const lobbyRef = ref(realtimeDb, gameId);
+			if (!lobbyData.players.some((player) => player.name === playerName)) {
+				const updatedPlayers = [...lobbyData.players, { name: playerName, points: 0 }];
+				set(lobbyRef, { ...lobbyData, players: updatedPlayers });
+			}
 			currentPlayerName.set(playerName);
 			goto(`/game/${gameId}`);
 		}
