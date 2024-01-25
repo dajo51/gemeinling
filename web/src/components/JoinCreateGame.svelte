@@ -10,21 +10,110 @@
 	let playerNameMissing = false;
 	let lobbyData;
 
+	const characteristicsList = [
+		'Abenteuerlustig',
+		'Belesen',
+		'Charismatisch',
+		'Diszipliniert',
+		'Einfallsreich',
+		'Flexibel',
+		'Geduldig',
+		'Hilfsbereit',
+		'Ideenvoll',
+		'Jovial',
+		'Kreativ',
+		'Launisch',
+		'Misstrauisch',
+		'Nachdenklich',
+		'Offen',
+		'Pessimistisch',
+		'Quengelig',
+		'Respektvoll',
+		'Selbstbewusst',
+		'Taktlos',
+		'Umsichtig',
+		'Vergesslich',
+		'Weitsichtig',
+		'Xenophob',
+		'Zuverlässig',
+		'Ausdauernd',
+		'Beherzt',
+		'Cholerisch',
+		'Dominant',
+		'Ehrlich',
+		'Friedlich',
+		'Großzügig',
+		'Hartnäckig',
+		'Intuitiv',
+		'Jugendlich',
+		'Klug',
+		'Liebevoll',
+		'Mürrisch',
+		'Neugierig',
+		'Opportunistisch',
+		'Pragmatisch',
+		'Querdenkend',
+		'Rücksichtsvoll',
+		'Stur',
+		'Temperamentvoll',
+		'Unruhig',
+		'Vorsichtig',
+		'Witzig',
+		'Zielstrebig',
+		'Aufmerksam',
+		'Faul',
+		'Geizig',
+		'Hinterhältig',
+		'Jähzornig',
+		'Launisch',
+		'Oberflächlich',
+		'Penibel',
+		'Querulant',
+		'Rastlos',
+		'Sorgfältig',
+		'Tüchtig',
+		'Unternehmungslustig',
+		'Verbissen',
+		'Wankelmütig',
+		'Zögerlich',
+		'Anspruchsvoll',
+		'Besorgt',
+		'Frech',
+		'Grob',
+		'Intolerant',
+		'Kleinlich',
+		'Laut',
+		'Neidisch',
+		'Unentschlossen',
+		'Xenophil',
+		'Zynisch',
+		'Aufdringlich'
+	];
+
 	const generateGameId = (length) => {
 		return Array(length)
-			.fill('x')
-			.join('')
-			.replace(/x/g, () => {
-				return String.fromCharCode(Math.floor(Math.random() * 26) + 65);
-			});
+			.fill(null)
+			.map(() => {
+				const isNumber = Math.random() < 0.5; // Randomly decide if next character is a number or letter
+				if (isNumber) {
+					return String.fromCharCode(Math.floor(Math.random() * 10) + 48); // Numbers (0-9)
+				} else {
+					return String.fromCharCode(Math.floor(Math.random() * 26) + 97); // Lowercase letters (a-z)
+				}
+			})
+			.join('');
 	};
 
 	async function createRealtimeGameRoom({ playerName }) {
 		const gameId = generateGameId(8);
+		const createdAt = new Date().toISOString();
 
 		set(ref(realtimeDb, gameId), {
 			players: [{ name: playerName, points: 0 }],
-			createdAt: new Date()
+			createdAt: createdAt,
+			started: false,
+			ended: false,
+			characteristics: characteristicsList
 		});
 		return gameId;
 	}

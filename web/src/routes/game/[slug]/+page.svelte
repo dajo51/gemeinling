@@ -6,41 +6,58 @@
 	export let data;
 	let lobbyData = {};
 	let roundNumber = 1;
-	let characteristicsList = ['nett', 'freundlich', 'lieb', 'gemein'];
-	let randomCharateristic;
+	let playerData = [];
+	let characteristicsList = [];
 
-	const playersRef = ref(realtimeDb, data.gameId + '/players');
-	onValue(playersRef, (snapshot) => {
+	let currentRound = {
+		started: false
+	};
+
+	const gameRef = ref(realtimeDb, data.gameId + '/');
+	onValue(gameRef, (snapshot) => {
 		lobbyData = snapshot.val();
 	});
 
+	$: playerData = lobbyData && Array.isArray(lobbyData.players) ? lobbyData.players : [];
+
+	$: characteristicsList =
+		lobbyData && Array.isArray(lobbyData.characteristics) ? lobbyData.characteristics : [];
+
 	function startGame() {
-		randomCharateristic =
-			characteristicsList[Math.floor(Math.random() * characteristicsList.length)];
-		characteristicsList = characteristicsList.filter((item) => item !== randomCharateristic);
 		update(ref(realtimeDb, data.gameId), {
-			started: true,
-			characteristicsList: characteristicsList
+			started: true
 		});
 		set(ref(realtimeDb, data.gameId + '/rounds/' + roundNumber), {
-			started: true,
-			characteristic: randomCharateristic
+			started: true
+		});
+
+		startRound();
+	}
+
+	function startRound() {
+		set(ref(realtimeDb, data.gameId + '/rounds/' + roundNumber), { ...currentRound });
+	}
+
+	function endGame() {
+		update(ref(realtimeDb, data.gameId), {
+			ended: true
 		});
 	}
 
-	$: processedLobbyData =
-		lobbyData && typeof lobbyData === 'object' ? Object.values(lobbyData) : [];
+	console.log(lobbyData.players);
 </script>
 
 <h1 class="text-2xl">Spiel ID: {data.gameId}</h1>
 <h2 class="text-xl">Du bist: {$currentPlayerName}</h2>
+
 <ul class="list">
-	{#each processedLobbyData as player}
+	{#each playerData as player}
 		<li class="m-2">
 			{player.name} hat {player.points}
 			{player.points === 1 ? 'Punkt' : 'Punkte'}
 		</li>
 	{/each}
 </ul>
-
-<button on:click={startGame}>Spiel starten</button>
+{#if lobbyData.started === false}
+	<button on:click={startGame}>Spiel starten</button>
+{/if}
