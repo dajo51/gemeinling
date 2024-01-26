@@ -113,7 +113,8 @@
 			createdAt: createdAt,
 			started: false,
 			ended: false,
-			characteristics: characteristicsList
+			characteristics: characteristicsList,
+			maxPoints: 30
 		});
 		return gameId;
 	}
