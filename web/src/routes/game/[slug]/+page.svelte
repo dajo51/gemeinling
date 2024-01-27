@@ -1,6 +1,7 @@
 <script>
 	import { currentPlayerName } from '$lib/stores';
-	import { ref, onValue, update, set } from 'firebase/database';
+	import GameEnded from '../../../components/GameEnded.svelte';
+	import { ref, onValue, update, set, forceLongPolling } from 'firebase/database';
 	import { realtimeDb } from '$lib/firebase/firebase';
 
 	export let data;
@@ -60,14 +61,25 @@
 <h1 class="text-2xl">Spiel ID: {data.gameId}</h1>
 <h2 class="text-xl">Du bist: {$currentPlayerName}</h2>
 
-<ul class="list">
-	{#each playerData as player}
-		<li class="m-2">
-			{player.name} hat {player.points}
-			{player.points === 1 ? 'Punkt' : 'Punkte'}
-		</li>
-	{/each}
-</ul>
-{#if lobbyData.started === true}
-	<button on:click={startGame}>Spiel starten</button>
+{#if lobbyData.ended === false}
+	<ul class="list">
+		{#each playerData as player}
+			<li class="m-2">
+				{player.name} hat {player.points}
+				{player.points === 1 ? 'Punkt' : 'Punkte'}
+			</li>
+		{/each}
+	</ul>
+
+	{#if lobbyData.started === false}
+		<button on:click={startGame}>Spiel starten</button>
+	{/if}
+
+	{#if lobbyData.started === true}
+		<button on:click={startRound}>Runde starten</button>
+	{/if}
+
+	<button on:click={endGame}>Spiel beenden</button>
+{:else}
+	<GameEnded {playerData} />
 {/if}
