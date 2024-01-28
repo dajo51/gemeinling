@@ -1,7 +1,7 @@
 <script>
 	import { currentPlayerName } from '$lib/stores';
 	import GameEnded from '../../../components/GameEnded.svelte';
-	import { ref, onValue, update, set, forceLongPolling } from 'firebase/database';
+	import { ref, onValue, update, set } from 'firebase/database';
 	import { realtimeDb } from '$lib/firebase/firebase';
 
 	export let data;
@@ -25,12 +25,13 @@
 		update(ref(realtimeDb, data.gameId), {
 			started: true
 		});
-		console.log(getBestPlayer());
-		while (getBestPlayer() < lobbyData.maxPoints) {
-			startRound();
-			roundNumber += 1;
-			playerDescribingIndex = (playerDescribingIndex + 1) % playerData.length;
-		}
+		startRound();
+		// console.log(getBestPlayer());
+		// while (getBestPlayer() < lobbyData.maxPoints) {
+		// 	startRound();
+		// 	roundNumber += 1;
+		// 	playerDescribingIndex = (playerDescribingIndex + 1) % playerData.length;
+		// }
 	}
 
 	function startRound() {
