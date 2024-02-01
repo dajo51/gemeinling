@@ -90,7 +90,7 @@
 	{/if}
 	{#if currentRound.started === true && currentRound.playerDescribing === $currentPlayerName && turnNumber >= 1}
 		<p>Du beschreibst {currentRound.playerBeingDescribed}!</p>
-		<GuessingCard {lobbyData} {gameId} {currentTurnRef} />
+		<GuessingCard {lobbyData} {gameId} {currentTurnRef} {turnNumber} />
 	{/if}
 
 	<h4 class="text-xl">Debugging Daten</h4>

@@ -5,6 +5,7 @@
 	export let lobbyData;
 	export let gameId;
 	export let currentTurnRef;
+	export let turnNumber;
 
 	let characteristicsList = lobbyData.characteristics;
 	let selectedCharacteristic =
@@ -29,6 +30,9 @@
 
 		try {
 			await update(ref(realtimeDb, gameId), updates);
+			await update(ref(realtimeDb, gameId + '/rounds/' + lobbyData.roundNumber), {
+				turnNumber: turnNumber - 1
+			});
 			console.log('Rating submitted successfully');
 		} catch (error) {
 			console.error('Error submitting rating:', error);
