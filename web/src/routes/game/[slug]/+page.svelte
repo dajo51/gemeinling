@@ -23,6 +23,13 @@
 	$: currentRound =
 		lobbyData && lobbyData.rounds && roundNumber ? lobbyData.rounds[roundNumber] : null;
 
+	$: turnNumber = currentRound && currentRound.turnNumber ? currentRound.turnNumber : null;
+
+	$: currentTurn =
+		currentRound && currentRound.turns && turnNumber ? currentRound.turns[turnNumber] : null;
+
+	$: currentTurnRef = `/rounds/${roundNumber}/turns/${turnNumber}`;
+
 	function getBestPlayer() {
 		return Math.max(...playerData.map((player) => player.points));
 	}
@@ -45,22 +52,19 @@
 			ended: false,
 			playerDescribing: playerData[playerDescribingIndex].name,
 			playerBeingDescribed: playerData[playerBeingDescribedIndex].name,
-			turns: []
+			turnNumber: 3,
+			turns: [],
+			guesses: []
 		});
 	}
 
 	function startTurn() {
-		set(ref(realtimeDb, data.gameId + '/rounds/turns/' + turnNumber), {
-			started: true,
-			ended: false,
-			characteristics: {}
-		});
-	}
-
-	function endGame() {
-		update(ref(realtimeDb, data.gameId), {
-			ended: true
-		});
+		if (turnNumber >= 1) {
+			set(ref(realtimeDb, data.gameId + '/rounds' + roundNumber + '/turns/' + turnNumber), {
+				started: true,
+				ended: false
+			});
+		}
 	}
 </script>
 
@@ -81,22 +85,19 @@
 		<button on:click={startGame}>Spiel starten</button>
 	{/if}
 
-	{#if lobbyData.started === true}
+	{#if lobbyData.started === true && currentRound.started === false}
 		<button on:click={startRound}>Runde starten</button>
 	{/if}
-
-	{#if lobbyData.started === true && currentRound.playerDescribing === $currentPlayerName}
-		<button on:click={startTurn}>Erste Eigenschaft raten</button>
+	{#if currentRound.started === true && currentRound.playerDescribing === $currentPlayerName && turnNumber >= 1}
+		<p>Du beschreibst {currentRound.playerBeingDescribed}!</p>
+		<GuessingCard {lobbyData} {gameId} {currentTurnRef} />
 	{/if}
 
-	<GuessingCard {lobbyData} {gameId} />
-	{#if currentRound}
-		<p>Runde {roundNumber}</p>
-		<p>Spieler der beschreibt: {currentRound.playerDescribing}</p>
-		<p>Spieler der beschreibt: {currentRound.playerBeingDescribed}</p>
-	{/if}
-
-	<button on:click={endGame}>Spiel beenden</button>
+	<h4 class="text-xl">Debugging Daten</h4>
+	<p>Runde {roundNumber}</p>
+	<p>Turn {turnNumber}</p>
+	<p>Spieler der beschreibt: {currentRound.playerDescribing}</p>
+	<p>Spieler der beschrieben wird: {currentRound.playerBeingDescribed}</p>
 {:else}
 	<GameEnded {playerData} />
 {/if}

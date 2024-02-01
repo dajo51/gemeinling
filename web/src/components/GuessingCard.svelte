@@ -4,8 +4,8 @@
 
 	export let lobbyData;
 	export let gameId;
+	export let currentTurnRef;
 
-	let turnNumber = 1;
 	let characteristicsList = lobbyData.characteristics;
 	let selectedCharacteristic =
 		characteristicsList[Math.floor(Math.random() * characteristicsList.length)];
@@ -25,18 +25,10 @@
 
 		const updates = {};
 		updates['/characteristics'] = updatedCharacteristicsList;
-		updates[
-			gameId +
-				'/rounds/' +
-				lobbyData.roundNumber +
-				'/turns/' +
-				turnNumber +
-				'/characteristics/' +
-				selectedCharacteristic
-		] = sliderValue;
+		updates[currentTurnRef + '/characteristics/' + selectedCharacteristic] = sliderValue;
 
 		try {
-			await update(ref(realtimeDb, lobbyData.gameId), updates);
+			await update(ref(realtimeDb, gameId), updates);
 			console.log('Rating submitted successfully');
 		} catch (error) {
 			console.error('Error submitting rating:', error);
@@ -45,7 +37,7 @@
 </script>
 
 <div>
-	<p>Eigenschaft: {selectedCharacteristic} {sliderValue}</p>
+	<p>Auf einer Skala von 1 bis 20 er/sie {sliderValue} {selectedCharacteristic}</p>
 	<input type="range" min="0" max="20" bind:value={sliderValue} />
 	<button on:click={submitRating}>Bewertung abgeben</button>
 </div>
