@@ -18,7 +18,10 @@
 
 	$: playerData = lobbyData && Array.isArray(lobbyData.players) ? lobbyData.players : [];
 
-	$: roundNumber = lobbyData && lobbyData.roundNumber ? lobbyData.roundNumber : 1;
+	$: roundNumber = lobbyData && lobbyData.roundNumber ? lobbyData.roundNumber : null;
+
+	$: currentRound =
+		lobbyData && lobbyData.rounds && roundNumber ? lobbyData.rounds[roundNumber] : null;
 
 	function getBestPlayer() {
 		return Math.max(...playerData.map((player) => player.points));
@@ -28,13 +31,6 @@
 		update(ref(realtimeDb, data.gameId), {
 			started: true
 		});
-		startRound();
-		// console.log(getBestPlayer());
-		// while (getBestPlayer() < lobbyData.maxPoints) {
-		// 	startRound();
-		// 	roundNumber += 1;
-		// 	playerDescribingIndex = (playerDescribingIndex + 1) % playerData.length;
-		// }
 	}
 
 	function startRound() {
@@ -89,11 +85,16 @@
 		<button on:click={startRound}>Runde starten</button>
 	{/if}
 
-	{#if lobbyData.started === true && lobbyData.rounds[roundNumber].playerDescribing === $currentPlayerName}
+	{#if lobbyData.started === true && currentRound.playerDescribing === $currentPlayerName}
 		<button on:click={startTurn}>Erste Eigenschaft raten</button>
 	{/if}
 
 	<GuessingCard {lobbyData} {gameId} />
+	{#if currentRound}
+		<p>Runde {roundNumber}</p>
+		<p>Spieler der beschreibt: {currentRound.playerDescribing}</p>
+		<p>Spieler der beschreibt: {currentRound.playerBeingDescribed}</p>
+	{/if}
 
 	<button on:click={endGame}>Spiel beenden</button>
 {:else}

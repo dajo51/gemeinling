@@ -115,7 +115,8 @@
 			ended: false,
 			characteristics: characteristicsList,
 			maxPoints: 30,
-			roundNumber: 1
+			roundNumber: 1,
+			rounds: []
 		});
 		return gameId;
 	}
