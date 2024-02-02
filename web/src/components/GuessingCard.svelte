@@ -20,19 +20,22 @@
 	};
 
 	async function submitRating() {
-		const updatedCharacteristicsList = characteristicsList.filter(
-			(item) => item !== selectedCharacteristic
-		);
-
-		const updates = {};
-		updates['/characteristics'] = updatedCharacteristicsList;
-		updates[currentTurnRef + '/characteristics/' + selectedCharacteristic] = sliderValue;
-
 		try {
+			const updatedCharacteristicsList = characteristicsList.filter(
+				(item) => item !== selectedCharacteristic
+			);
+
+			const updates = {};
+			updates['/characteristics'] = updatedCharacteristicsList;
+			updates[currentTurnRef + '/characteristics/' + selectedCharacteristic] = sliderValue;
 			await update(ref(realtimeDb, gameId), updates);
 			await update(ref(realtimeDb, gameId + '/rounds/' + lobbyData.roundNumber), {
 				turnNumber: turnNumber - 1
 			});
+
+			characteristicsList = updatedCharacteristicsList;
+			selectedCharacteristic =
+				characteristicsList[Math.floor(Math.random() * characteristicsList.length)];
 			console.log('Rating submitted successfully');
 		} catch (error) {
 			console.error('Error submitting rating:', error);
