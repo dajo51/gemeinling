@@ -5,6 +5,7 @@ logs/
 *.pid
 
 # === Backend (Python / FastAPI) ===
+*/**/*.pyc
 backend/__pycache__/
 backend/*.pyc
 backend/*.pyo

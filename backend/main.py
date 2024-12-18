@@ -1,42 +1,32 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import logging
+from routers import players, game
+from db.database import engine
+from models.player import Base
 
-# Initialize logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+Base.metadata.create_all(bind=engine)
 
-# Create FastAPI application instance
+# Initialize app
 app = FastAPI(
     title="Fiesling Webapp Backend",
-    description="Backend service for the Fiesling web application.",
+    description="Backend for the Fiesling game",
     version="0.1.0",
 )
 
-# CORS configuration for development
+# Add middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins during development (restrict in production)
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Root endpoint to test server status
+# Include routers
+app.include_router(players.router, prefix="/api/players", tags=["Players"])
+app.include_router(game.router, prefix="/api/game", tags=["Game"])
+
+# Root endpoint
 @app.get("/")
 def read_root():
-    """
-    Root endpoint for API health check.
-    """
-    logger.info("Root endpoint accessed.")
-    return {"message": "FastAPI backend is up and running with the latest version!"}
-
-
-# Example endpoint for starting the game
-@app.get("/start")
-def start_game():
-    """
-    Endpoint to initialize the game.
-    """
-    logger.info("Game start endpoint accessed.")
-    return {"message": "Game has been successfully started!"}
+    return {"message": "Welcome to the Fiesling Webapp API"}
