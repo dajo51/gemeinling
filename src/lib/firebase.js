@@ -1,8 +1,7 @@
-// Import Firebase modules
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, setDoc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
 
-// Firebase configuration (pulled from environment variables)
+// Firebase configuration
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -12,14 +11,27 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Initialize the Firebase app
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
-// Set up Firestore and export it
 export const db = getFirestore(app);
 
+const deck = [
+  "freundlich",
+  "diszipliniert",
+  "kreativ",
+  "chaotisch",
+  "hilfsbereit",
+  "stur",
+  "ruhig",
+  "gesprächig",
+  "ehrgeizig",
+  "faul",
+  "entspannt",
+  "aufmerksam"
+];
+
 /**
- * Creates a new game in the Firestore database.
+ * Creates a new game in Firestore.
  * @param {string} gameId - The ID of the new game.
  */
 export async function createGame(gameId) {
@@ -32,9 +44,9 @@ export async function createGame(gameId) {
 }
 
 /**
- * Joins an existing game by adding a player to the players list.
+ * Joins a player to an existing game.
  * @param {string} gameId - The ID of the game to join.
- * @param {string} playerName - The name of the player joining the game.
+ * @param {string} playerName - The name of the joining player.
  */
 export async function joinGame(gameId, playerName) {
   const gameRef = doc(db, 'games', gameId);
@@ -50,49 +62,137 @@ export async function joinGame(gameId, playerName) {
 }
 
 /**
- * Start the game and set a random player's turn.
+ * Initialize the game by selecting the first describing player and setting the state.
  * @param {string} gameId - The ID of the game.
  */
-export async function startGame(gameId) {
-    const gameRef = doc(db, 'games', gameId);
-    const gameSnapshot = await getDoc(gameRef);
-  
-    if (!gameSnapshot.exists()) {
-      throw new Error('Game not found!');
-    }
-  
-    const gameData = gameSnapshot.data();
-    const players = gameData.players;
-  
-    if (players.length === 0) {
-      throw new Error('No players in the game!');
-    }
-  
-    // Select a random player to start
-    const randomPlayerIndex = Math.floor(Math.random() * players.length);
-    const randomPlayer = players[randomPlayerIndex].name;
-  
-    // Update Firestore with the initial turn and new state
-    await updateDoc(gameRef, {
-      currentTurn: randomPlayer, // Set a random player as the first turn
-      state: 'playing'
-    });
+export async function initializeGame(gameId) {
+  const gameRef = doc(db, 'games', gameId);
+  const gameSnapshot = await getDoc(gameRef);
+
+  if (!gameSnapshot.exists()) {
+    throw new Error('Game not found!');
   }
 
-/**
- * Pass the turn to the next player.
- * @param {string} gameId - The ID of the game.
- * @param {Array} players - List of players.
- * @param {string} currentPlayer - Name of the current player.
- */
-export async function passTurn(gameId, players, currentPlayer) {
-    const gameRef = doc(db, 'games', gameId);
-  
-    // Find the index of the current player and calculate the next turn
-    const currentIndex = players.findIndex(player => player.name === currentPlayer);
-    const nextIndex = (currentIndex + 1) % players.length; // Cycle through players
-  
-    await updateDoc(gameRef, {
-      currentTurn: players[nextIndex].name
-    });
+  const gameData = gameSnapshot.data();
+  const players = gameData.players;
+
+  if (players.length === 0) {
+    throw new Error('No players in the game!');
   }
+
+  const randomIndex = Math.floor(Math.random() * players.length);
+  const describingPlayer = players[randomIndex].name;
+
+  const initialPoints = players.map(player => ({
+    name: player.name,
+    points: 0
+  }));
+
+  await updateDoc(gameRef, {
+    state: 'playing',
+    describingPlayer,
+    currentPhase: 1,
+    roundsLeft: players.length * 2,
+    currentCards: [],
+    points: initialPoints,
+    guesses: [] // Store guesses made by players during a round
+  });
+}
+
+/**
+ * Draw two random cards for the current phase.
+ * @param {string} gameId - The ID of the game.
+ */
+export async function drawCards(gameId) {
+  const gameRef = doc(db, 'games', gameId);
+  const randomCards = [...deck]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 2)
+    .map((text, index) => ({ id: `card${index + 1}`, text, value: 0 }));
+
+  await updateDoc(gameRef, {
+    currentCards: randomCards
+  });
+}
+
+/**
+ * Submit the guesses from players and update the points.
+ * @param {string} gameId - The ID of the game.
+ * @param {Array} guesses - An array of guesses made by players.
+ */
+export async function submitGuesses(gameId, guesses) {
+  const gameRef = doc(db, 'games', gameId);
+  const gameSnapshot = await getDoc(gameRef);
+
+  if (!gameSnapshot.exists()) {
+    throw new Error('Game not found!');
+  }
+
+  const gameData = gameSnapshot.data();
+  const { describingPlayer } = gameData;
+  let points = [...gameData.points];
+
+  guesses.forEach(guess => {
+    if (guess.correct) {
+      const player = points.find(p => p.name === guess.player);
+      if (gameData.currentPhase === 1) {
+        player.points += 3;
+      } else if (gameData.currentPhase === 2) {
+        player.points += 2;
+      } else {
+        player.points += 1;
+      }
+    }
+  });
+
+  const describer = points.find(p => p.name === describingPlayer);
+  if (guesses.filter(g => g.correct).length > guesses.length / 2) {
+    describer.points += 3; // Bonus for describer if more than half guess correctly
+  }
+
+  await updateDoc(gameRef, { points });
+}
+
+/**
+ * Submit the current phase description and handle phase progression.
+ * @param {string} gameId - The ID of the game.
+ * @param {Array} cards - The updated cards with their values.
+ */
+export async function submitPhase(gameId, cards) {
+  const gameRef = doc(db, 'games', gameId);
+  const gameSnapshot = await getDoc(gameRef);
+
+  if (!gameSnapshot.exists()) {
+    throw new Error('Game not found!');
+  }
+
+  const gameData = gameSnapshot.data();
+  const nextPhase = gameData.currentPhase + 1;
+
+  if (nextPhase <= 3) {
+    await updateDoc(gameRef, {
+      currentPhase: nextPhase,
+      currentCards: cards
+    });
+  } else {
+    const players = gameData.players;
+    const currentDescriberIndex = players.findIndex(
+      player => player.name === gameData.describingPlayer
+    );
+    const nextDescriberIndex = (currentDescriberIndex + 1) % players.length;
+
+    await updateDoc(gameRef, {
+      currentPhase: 1,
+      currentCards: [],
+      describingPlayer: players[nextDescriberIndex].name,
+      roundsLeft: gameData.roundsLeft - 1,
+      guesses: [] // Reset guesses for the next round
+    });
+
+    if (gameData.roundsLeft - 1 === 0) {
+      await updateDoc(gameRef, {
+        state: 'finished'
+      });
+    }
+  }
+}
