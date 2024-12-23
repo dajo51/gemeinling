@@ -105,218 +105,163 @@
     }
   </script>
   
-  {#if !hasJoined}
-    <h1>Enter your name to join the lobby</h1>
-    <input bind:value={playerName} placeholder="Your Name" />
-    <button on:click={handleJoinGame}>Join Game</button>
-  {:else}
-    <div class="player-info">
-      <strong>You are playing as: {playerName}</strong>
-    </div>
-  
-    {#if gameData.state === 'lobby'}
-      <h1>Game Lobby</h1>
-      <h2>Players:</h2>
-      <ul>
-        {#each gameData.players as player}
-          <li>{player.name} {player.name === playerName ? '(You)' : ''}</li>
-        {/each}
-      </ul>
-
-      {#if isHost}
-        <button on:click={handleStartGame}>Start Game</button>
-      {:else}
-        <p>Waiting for the host to start the game...</p>
-      {/if}
-    {:else if gameData.state === 'playing'}
-      <h1>Round {gameData.currentRound} of 3</h1>
-      
-      {#if gameData.describingPlayer === playerName}
-        {#if gameData.currentPhase === 'describing'}
-          <h2>You are describing: {gameData.playerToDescribe}</h2>
-          {#if gameData.currentCards && gameData.currentCards.length > 0}
-            {#each gameData.currentCards as card}
-              <div class="card-rating">
-                <p>{card.text}</p>
-                <input
-                  type="range"
-                  min="1"
-                  max="5"
-                  value={cardValues[card.id] || card.value}
-                  on:input={(e) => updateCardValue(card.id, parseInt(e.target.value))}
-                />
-                <p>Value: {cardValues[card.id] || card.value}</p>
-              </div>
-            {/each}
-            <button on:click={handleSubmitDescription}>Submit Description</button>
+  <div>
+    {#if !hasJoined}
+      <h1>Enter your name to join the lobby</h1>
+      <input bind:value={playerName} placeholder="Your Name" />
+      <button on:click={handleJoinGame}>Join Game</button>
+    {:else}
+      <div>
+        <div>
+          <h3>Current Scores:</h3>
+          {#if gameData?.points}
+            <ul>
+              {#each gameData.points.sort((a, b) => b.points - a.points) as player}
+                <li>{player.name}: {player.points} points</li>
+              {/each}
+            </ul>
           {/if}
-        {:else}
-          <h2>Waiting for players to make their guesses...</h2>
-        {/if}
-      {:else}
-        {#if gameData.currentPhase === 'guessing'}
-          <div class="guess-section">
-            {#if gameData.revealedCards && gameData.revealedCards.length > 0}
-              <div class="revealed-cards">
-                <h3>Current Traits:</h3>
-                {#each gameData.revealedCards as card}
-                  <div class="trait-card">
-                    <p>{card.text}: {card.value}</p>
-                  </div>
-                {/each}
-              </div>
-            {/if}
+        </div>
 
-            {#if guessSubmitted}
-              <div class="guess-confirmation">
-                <p>✓ Your guess has been submitted for round {gameData.currentRound}</p>
-                <p>Waiting for other players to submit their guesses...</p>
-              </div>
+        <div>
+          <p><strong>You are playing as: {playerName}</strong></p>
+
+          {#if gameData.state === 'lobby'}
+            <h2>Game Lobby</h2>
+            <h3>Players:</h3>
+            <ul>
+              {#each gameData.players as player}
+                <li>{player.name} {player.name === playerName ? '(You)' : ''}</li>
+              {/each}
+            </ul>
+
+            {#if isHost}
+              <button on:click={handleStartGame}>Start Game</button>
             {:else}
-              {#if gameData.guesses[playerName]}
-                <div class="current-guess">
-                  <h3>Your current guess: {gameData.guesses[playerName].guess}</h3>
-                  {#if gameData.currentRound > 1}
-                    <p>Do you want to:</p>
-                    <div class="guess-buttons">
-                      <button class="keep-guess" on:click={handleKeepGuess}>
-                        Keep guessing {gameData.guesses[playerName].guess}
-                      </button>
-                      <p>or</p>
-                      <button class="change-guess" on:click={() => showChangeGuess = true}>
-                        Change your guess
-                      </button>
+              <p>Waiting for the host to start the game...</p>
+            {/if}
+          {:else if gameData.state === 'playing'}
+            <h1>Round {gameData.currentRound} of 3</h1>
+            
+            {#if gameData.describingPlayer === playerName}
+              {#if gameData.currentPhase === 'describing'}
+                <h2>You are describing: {gameData.playerToDescribe}</h2>
+                {#if gameData.currentCards && gameData.currentCards.length > 0}
+                  {#each gameData.currentCards as card}
+                    <div>
+                      <p>{card.text}</p>
+                      <input
+                        type="range"
+                        min="1"
+                        max="5"
+                        value={cardValues[card.id] || card.value}
+                        on:input={(e) => updateCardValue(card.id, parseInt(e.target.value))}
+                      />
+                      <p>Value: {cardValues[card.id] || card.value}</p>
+                    </div>
+                  {/each}
+                  <button on:click={handleSubmitDescription}>Submit Description</button>
+                {/if}
+              {:else}
+                <h2>Waiting for players to make their guesses...</h2>
+              {/if}
+            {:else}
+              {#if gameData.currentPhase === 'guessing'}
+                <div>
+                  {#if gameData.revealedCards && gameData.revealedCards.length > 0}
+                    <div>
+                      <h3>Traits described:</h3>
+                      <div>
+                        <h4>First two traits:</h4>
+                        <ul>
+                          {#each gameData.revealedCards.slice(0, 2) as card}
+                            <li>
+                              <strong>{card.text}:</strong> {card.value}
+                            </li>
+                          {/each}
+                        </ul>
+                      </div>
+
+                      {#if gameData.revealedCards.length > 2}
+                        <div>
+                          <h4>Second two traits:</h4>
+                          <ul>
+                            {#each gameData.revealedCards.slice(2, 4) as card}
+                              <li>
+                                <strong>{card.text}:</strong> {card.value}
+                              </li>
+                            {/each}
+                          </ul>
+                        </div>
+                      {/if}
+
+                      {#if gameData.revealedCards.length > 4}
+                        <div>
+                          <h4>Final two traits:</h4>
+                          <ul>
+                            {#each gameData.revealedCards.slice(4, 6) as card}
+                              <li>
+                                <strong>{card.text}:</strong> {card.value}
+                              </li>
+                            {/each}
+                          </ul>
+                        </div>
+                      {/if}
                     </div>
                   {/if}
-                </div>
-              {/if}
 
-              {#if !gameData.guesses[playerName] || showChangeGuess}
-                <div class="new-guess">
-                  <select bind:value={currentGuess}>
-                    <option value="">Select a player to guess</option>
-                    {#each gameData.players.filter(p => p.name !== gameData.describingPlayer) as player}
-                      <option value={player.name}>{player.name}</option>
-                    {/each}
-                  </select>
-                  <button on:click={handleSubmitGuess}>Submit New Guess</button>
+                  {#if guessSubmitted}
+                    <div>
+                      <p>✓ Your guess has been submitted for round {gameData.currentRound}</p>
+                      <p>Waiting for other players to submit their guesses...</p>
+                    </div>
+                  {:else}
+                    {#if gameData.guesses[playerName]}
+                      <div>
+                        <h3>Your current guess: {gameData.guesses[playerName].guess}</h3>
+                        {#if gameData.currentRound > 1}
+                          <p>Do you want to:</p>
+                          <div>
+                            <button on:click={handleKeepGuess}>
+                              Keep guessing {gameData.guesses[playerName].guess}
+                            </button>
+                            <p>or</p>
+                            <button on:click={() => showChangeGuess = true}>
+                              Change your guess
+                            </button>
+                          </div>
+                        {/if}
+                      </div>
+                    {/if}
+
+                    {#if !gameData.guesses[playerName] || showChangeGuess}
+                      <div>
+                        <select bind:value={currentGuess}>
+                          <option value="">Select a player to guess</option>
+                          {#each gameData.players.filter(p => p.name !== gameData.describingPlayer) as player}
+                            <option value={player.name}>{player.name}</option>
+                          {/each}
+                        </select>
+                        <button on:click={handleSubmitGuess}>Submit New Guess</button>
+                      </div>
+                    {/if}
+                  {/if}
                 </div>
+              {:else}
+                <h2>Waiting for {gameData.describingPlayer} to describe...</h2>
               {/if}
             {/if}
-          </div>
-        {:else}
-          <h2>Waiting for {gameData.describingPlayer} to describe...</h2>
-        {/if}
-      {/if}
-    {:else if gameData.state === 'finished'}
-      <h1>Game Over!</h1>
-      <h2>Final Scores:</h2>
-      <ul>
-        {#each gameData.points as playerPoints}
-          <li>{playerPoints.name} {playerPoints.name === playerName ? '(You)' : ''}: {playerPoints.points} points</li>
-        {/each}
-      </ul>
-      
-      <h3>The player being described was: {gameData.playerToDescribe}</h3>
+          {:else if gameData.state === 'finished'}
+            <h2>Game Over!</h2>
+            <h3>Final Scores:</h3>
+            <ul>
+              {#each gameData.points as playerPoints}
+                <li>{playerPoints.name}: {playerPoints.points} points</li>
+              {/each}
+            </ul>
+            <p>The player being described was: {gameData.playerToDescribe}</p>
+          {/if}
+        </div>
+      </div>
     {/if}
-  {/if}
-
-  <style>
-    .player-info {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      background: #f0f0f0;
-      padding: 8px 12px;
-      border-radius: 4px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .card-rating {
-      margin: 20px 0;
-      padding: 15px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
-
-    .revealed-cards {
-      margin: 20px 0;
-      padding: 15px;
-      background: #f5f5f5;
-      border-radius: 4px;
-    }
-
-    .trait-card {
-      margin: 10px 0;
-      padding: 10px;
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
-
-    .trait-card p {
-      margin: 0;
-      font-size: 1.1em;
-    }
-
-    .guess-section {
-      margin: 20px 0;
-    }
-
-    .current-guess {
-      margin-bottom: 20px;
-      padding: 15px;
-      background: #e8f4ff;
-      border-radius: 4px;
-    }
-
-    .guess-buttons {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      margin-top: 10px;
-    }
-
-    .keep-guess {
-      background: #4CAF50;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    .change-guess {
-      background: #2196F3;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      opacity: 0.9;
-    }
-
-    select {
-      padding: 8px;
-      margin-right: 10px;
-      border-radius: 4px;
-      border: 1px solid #ddd;
-    }
-
-    .guess-confirmation {
-      margin: 20px 0;
-      padding: 15px;
-      background: #e8ffe8;
-      border: 1px solid #4CAF50;
-      border-radius: 4px;
-      text-align: center;
-    }
-
-    .guess-confirmation p:first-child {
-      color: #4CAF50;
-      font-weight: bold;
-    }
-  </style>
+  </div>
