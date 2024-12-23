@@ -176,16 +176,23 @@ export async function submitGuess(gameId, playerName, guess) {
   if (!guesses[playerName]) {
     guesses[playerName] = {
       guess,
-      roundFirstGuessed: currentRound
+      roundFirstGuessed: currentRound,
+      lastUpdatedRound: currentRound
     };
-  } else if (guesses[playerName].guess !== guess) {
-    guesses[playerName].guess = guess;
-    guesses[playerName].changed = true;
+  } else {
+    guesses[playerName] = {
+      ...guesses[playerName],
+      guess,
+      lastUpdatedRound: currentRound,
+      changed: guesses[playerName].guess !== guess
+    };
   }
 
-  // Check if all non-describing players have submitted guesses
+  // Check if all non-describing players have submitted guesses for the current round
   const nonDescribingPlayers = gameData.players.filter(p => p.name !== gameData.describingPlayer);
-  const allGuessesSubmitted = nonDescribingPlayers.every(p => guesses[p.name]?.guess);
+  const allGuessesSubmitted = nonDescribingPlayers.every(p => 
+    guesses[p.name]?.lastUpdatedRound === currentRound
+  );
 
   await updateDoc(gameRef, {
     guesses,
