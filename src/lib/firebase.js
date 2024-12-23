@@ -171,6 +171,7 @@ export async function submitGuess(gameId, playerName, guess) {
   const gameData = gameSnapshot.data();
   const guesses = { ...gameData.guesses };
   const currentRound = gameData.currentRound;
+  const correctPlayer = gameData.playerToDescribe;
 
   // Update or create the player's guess
   if (!guesses[playerName]) {
@@ -178,15 +179,21 @@ export async function submitGuess(gameId, playerName, guess) {
       guess,
       roundFirstGuessed: currentRound,
       lastUpdatedRound: currentRound,
-      changed: false
+      changed: false,
+      correct: guess === correctPlayer,
+      correctRound: guess === correctPlayer ? currentRound : null
     };
   } else {
     const isNewGuess = guess !== guesses[playerName].guess;
+    const isCorrectNow = guess === correctPlayer;
     guesses[playerName] = {
       ...guesses[playerName],
       guess,
       lastUpdatedRound: currentRound,
-      changed: isNewGuess ? true : guesses[playerName].changed
+      changed: isNewGuess ? true : guesses[playerName].changed,
+      correct: isCorrectNow,
+      // Only update correctRound if this is the first time they got it correct
+      correctRound: isCorrectNow && guesses[playerName].correctRound === null ? currentRound : guesses[playerName].correctRound
     };
   }
 
@@ -237,32 +244,26 @@ function calculateFinalPoints(currentPoints, guesses, correctPlayer, describingP
     console.log(`\n${playerName}:`);
     const guessData = guesses[playerName];
     console.log('- First guessed in round:', guessData.roundFirstGuessed);
-    console.log('- Last updated in round:', guessData.lastUpdatedRound);
-    console.log('- Changed guess:', guessData.changed);
-    console.log('- Final guess:', guessData.guess);
+    console.log('- Correct in round:', guessData.correctRound);
+    console.log('- Final guess correct:', guessData.correct);
     
     const playerPoints = points.find(p => p.name === playerName);
     
     if (playerPoints) {
-      if (guessData.guess === correctPlayer) {
+      // Award points based on final correctness and when they first got it right
+      if (guessData.correct) {
         correctGuessCount++;
         console.log(' Final guess is correct!');
         
-        // 3 points: First round correct and never changed
-        if (guessData.roundFirstGuessed === 1 && !guessData.changed) {
+        if (guessData.correctRound === 1) {
           playerPoints.points += 3;
-          console.log('→ Gets 3 points: First round correct, never changed');
-        }
-        // 2 points: Got it right in round 2 (either first guess or changed)
-        else if (guessData.roundFirstGuessed === 2 || 
-                (guessData.roundFirstGuessed === 1 && guessData.lastUpdatedRound === 2)) {
+          console.log('→ Gets 3 points: Correct from round 1');
+        } else if (guessData.correctRound === 2) {
           playerPoints.points += 2;
-          console.log('→ Gets 2 points: Got it right in round 2');
-        }
-        // 1 point: Got it right in round 3
-        else if (guessData.roundFirstGuessed === 3 || guessData.lastUpdatedRound === 3) {
+          console.log('→ Gets 2 points: Correct from round 2');
+        } else if (guessData.correctRound === 3) {
           playerPoints.points += 1;
-          console.log('→ Gets 1 point: Got it right in round 3');
+          console.log('→ Gets 1 point: Correct from round 3');
         }
       } else {
         console.log(' Final guess incorrect - 0 points');
