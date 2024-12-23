@@ -12,6 +12,7 @@
     let cardValues = {};
     let currentGuess = '';
     let showChangeGuess = false;
+    let guessSubmitted = false;
   
     // Firestore listener
     onMount(() => {
@@ -30,18 +31,40 @@
   
       return unsubscribe;
     });
+  
+    $: {
+      if (gameData?.currentRound) {
+        // Reset guessSubmitted when round changes
+        guessSubmitted = gameData.guesses[playerName]?.lastUpdatedRound === gameData.currentRound;
+      }
+    }
 
     async function handleKeepGuess() {
       try {
         const currentGuessData = gameData.guesses[playerName];
         await submitGuess(gameId, playerName, currentGuessData.guess);
+        guessSubmitted = true;
       } catch (error) {
         console.error('Error keeping guess:', error);
         alert('Failed to keep current guess.');
       }
     }
 
-    // Join the game
+    async function handleSubmitGuess() {
+      if (!currentGuess) {
+        alert('Please select a player');
+        return;
+      }
+      try {
+        await submitGuess(gameId, playerName, currentGuess);
+        showChangeGuess = false;
+        guessSubmitted = true;
+      } catch (error) {
+        console.error('Error submitting guess:', error);
+        alert('Failed to submit guess.');
+      }
+    }
+
     async function handleJoinGame() {
       if (!playerName) {
         alert('Please enter your name');
@@ -55,7 +78,6 @@
       }
     }
 
-    // Start the game
     async function handleStartGame() {
       try {
         await initializeGame(gameId);
@@ -75,20 +97,6 @@
       } catch (error) {
         console.error('Error submitting description:', error);
         alert('Failed to submit description.');
-      }
-    }
-  
-    async function handleSubmitGuess() {
-      if (!currentGuess) {
-        alert('Please select a player');
-        return;
-      }
-      try {
-        await submitGuess(gameId, playerName, currentGuess);
-        showChangeGuess = false;
-      } catch (error) {
-        console.error('Error submitting guess:', error);
-        alert('Failed to submit guess.');
       }
     }
   
@@ -144,58 +152,60 @@
           {/if}
         {:else}
           <h2>Waiting for players to make their guesses...</h2>
-          <div class="revealed-cards">
-            <h3>Previously Described Traits:</h3>
-            {#each gameData.revealedCards as card}
-              <p>{card.text}: {card.value}</p>
-            {/each}
-          </div>
         {/if}
       {:else}
-        {#if gameData.currentPhase === 'describing'}
-          <h2>Waiting for {gameData.describingPlayer} to describe...</h2>
-        {:else}
-          <h2>Make Your Guess</h2>
-          {#if gameData.revealedCards && gameData.revealedCards.length > 0}
-            <div class="revealed-cards">
-              <h3>Current Traits:</h3>
-              {#each gameData.revealedCards as card}
-                <p>{card.text}: {card.value}</p>
-              {/each}
-            </div>
-          {/if}
-          
+        {#if gameData.currentPhase === 'guessing'}
           <div class="guess-section">
-            {#if gameData.guesses[playerName]}
-              <div class="current-guess">
-                <h3>Your current guess: {gameData.guesses[playerName].guess}</h3>
-                {#if gameData.currentRound > gameData.guesses[playerName].roundFirstGuessed}
-                  <p>Do you want to:</p>
-                  <div class="guess-buttons">
-                    <button class="keep-guess" on:click={handleKeepGuess}>
-                      Keep guessing {gameData.guesses[playerName].guess}
-                    </button>
-                    <p>or</p>
-                    <button class="change-guess" on:click={() => showChangeGuess = true}>
-                      Change your guess
-                    </button>
+            {#if gameData.revealedCards && gameData.revealedCards.length > 0}
+              <div class="revealed-cards">
+                <h3>Current Traits:</h3>
+                {#each gameData.revealedCards as card}
+                  <div class="trait-card">
+                    <p>{card.text}: {card.value}</p>
                   </div>
-                {/if}
+                {/each}
               </div>
             {/if}
 
-            {#if !gameData.guesses[playerName] || showChangeGuess}
-              <div class="new-guess">
-                <select bind:value={currentGuess}>
-                  <option value="">Select a player to guess</option>
-                  {#each gameData.players.filter(p => p.name !== gameData.describingPlayer) as player}
-                    <option value={player.name}>{player.name}</option>
-                  {/each}
-                </select>
-                <button on:click={handleSubmitGuess}>Submit New Guess</button>
+            {#if guessSubmitted}
+              <div class="guess-confirmation">
+                <p>✓ Your guess has been submitted for round {gameData.currentRound}</p>
+                <p>Waiting for other players to submit their guesses...</p>
               </div>
+            {:else}
+              {#if gameData.guesses[playerName]}
+                <div class="current-guess">
+                  <h3>Your current guess: {gameData.guesses[playerName].guess}</h3>
+                  {#if gameData.currentRound > 1}
+                    <p>Do you want to:</p>
+                    <div class="guess-buttons">
+                      <button class="keep-guess" on:click={handleKeepGuess}>
+                        Keep guessing {gameData.guesses[playerName].guess}
+                      </button>
+                      <p>or</p>
+                      <button class="change-guess" on:click={() => showChangeGuess = true}>
+                        Change your guess
+                      </button>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+
+              {#if !gameData.guesses[playerName] || showChangeGuess}
+                <div class="new-guess">
+                  <select bind:value={currentGuess}>
+                    <option value="">Select a player to guess</option>
+                    {#each gameData.players.filter(p => p.name !== gameData.describingPlayer) as player}
+                      <option value={player.name}>{player.name}</option>
+                    {/each}
+                  </select>
+                  <button on:click={handleSubmitGuess}>Submit New Guess</button>
+                </div>
+              {/if}
             {/if}
           </div>
+        {:else}
+          <h2>Waiting for {gameData.describingPlayer} to describe...</h2>
         {/if}
       {/if}
     {:else if gameData.state === 'finished'}
@@ -234,6 +244,19 @@
       padding: 15px;
       background: #f5f5f5;
       border-radius: 4px;
+    }
+
+    .trait-card {
+      margin: 10px 0;
+      padding: 10px;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    .trait-card p {
+      margin: 0;
+      font-size: 1.1em;
     }
 
     .guess-section {
@@ -281,5 +304,19 @@
       margin-right: 10px;
       border-radius: 4px;
       border: 1px solid #ddd;
+    }
+
+    .guess-confirmation {
+      margin: 20px 0;
+      padding: 15px;
+      background: #e8ffe8;
+      border: 1px solid #4CAF50;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .guess-confirmation p:first-child {
+      color: #4CAF50;
+      font-weight: bold;
     }
   </style>

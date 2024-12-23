@@ -177,14 +177,16 @@ export async function submitGuess(gameId, playerName, guess) {
     guesses[playerName] = {
       guess,
       roundFirstGuessed: currentRound,
-      lastUpdatedRound: currentRound
+      lastUpdatedRound: currentRound,
+      changed: false
     };
   } else {
+    const isNewGuess = guess !== guesses[playerName].guess;
     guesses[playerName] = {
       ...guesses[playerName],
       guess,
       lastUpdatedRound: currentRound,
-      changed: guesses[playerName].guess !== guess
+      changed: isNewGuess ? true : guesses[playerName].changed
     };
   }
 
@@ -203,7 +205,7 @@ export async function submitGuess(gameId, playerName, guess) {
   if (allGuessesSubmitted) {
     if (currentRound === 3) {
       // Calculate final scores
-      const points = calculateFinalPoints(gameData.points, guesses, gameData.playerToDescribe);
+      const points = calculateFinalPoints(gameData.points, guesses, gameData.playerToDescribe, gameData.describingPlayer);
       await updateDoc(gameRef, {
         state: 'finished',
         points
@@ -220,24 +222,69 @@ export async function submitGuess(gameId, playerName, guess) {
   }
 }
 
-function calculateFinalPoints(currentPoints, guesses, correctPlayer) {
-  const points = [...currentPoints];
+function calculateFinalPoints(currentPoints, guesses, correctPlayer, describingPlayer) {
+  console.log('\n=== CALCULATING FINAL POINTS ===');
+  console.log('Correct Player:', correctPlayer);
+  console.log('Describing Player:', describingPlayer);
   
-  Object.entries(guesses).forEach(([playerName, guessData]) => {
-    if (guessData.guess === correctPlayer) {
-      const playerPoints = points.find(p => p.name === playerName);
-      if (playerPoints) {
-        // Award points based on when they first guessed correctly and if they changed their guess
+  const points = [...currentPoints];
+  const guessingPlayers = Object.keys(guesses).filter(name => name !== describingPlayer);
+  let correctGuessCount = 0;
+  
+  console.log('\nProcessing each player:');
+  // Calculate points for guessing players
+  guessingPlayers.forEach(playerName => {
+    console.log(`\n${playerName}:`);
+    const guessData = guesses[playerName];
+    console.log('- First guessed in round:', guessData.roundFirstGuessed);
+    console.log('- Last updated in round:', guessData.lastUpdatedRound);
+    console.log('- Changed guess:', guessData.changed);
+    console.log('- Final guess:', guessData.guess);
+    
+    const playerPoints = points.find(p => p.name === playerName);
+    
+    if (playerPoints) {
+      if (guessData.guess === correctPlayer) {
+        correctGuessCount++;
+        console.log(' Final guess is correct!');
+        
+        // 3 points: First round correct and never changed
         if (guessData.roundFirstGuessed === 1 && !guessData.changed) {
           playerPoints.points += 3;
-        } else if (guessData.roundFirstGuessed === 2 || (guessData.roundFirstGuessed === 1 && guessData.changed)) {
-          playerPoints.points += 2;
-        } else {
-          playerPoints.points += 1;
+          console.log('→ Gets 3 points: First round correct, never changed');
         }
+        // 2 points: Got it right in round 2 (either first guess or changed)
+        else if (guessData.roundFirstGuessed === 2 || 
+                (guessData.roundFirstGuessed === 1 && guessData.lastUpdatedRound === 2)) {
+          playerPoints.points += 2;
+          console.log('→ Gets 2 points: Got it right in round 2');
+        }
+        // 1 point: Got it right in round 3
+        else if (guessData.roundFirstGuessed === 3 || guessData.lastUpdatedRound === 3) {
+          playerPoints.points += 1;
+          console.log('→ Gets 1 point: Got it right in round 3');
+        }
+      } else {
+        console.log(' Final guess incorrect - 0 points');
       }
     }
   });
+
+  console.log('\nDescribing player points:');
+  console.log('Correct guesses:', correctGuessCount);
+  console.log('Total guessing players:', guessingPlayers.length);
+  
+  // Award points to describing player if more than half guessed correctly by the end
+  const describer = points.find(p => p.name === describingPlayer);
+  if (describer && correctGuessCount > guessingPlayers.length / 2) {
+    describer.points += 3;
+    console.log(`→ ${describingPlayer} gets 3 points (more than half guessed correctly)`);
+  } else {
+    console.log(`→ ${describingPlayer} gets 0 points (not enough correct guesses)`);
+  }
+
+  console.log('\nFinal points:', points.map(p => `${p.name}: ${p.points}`).join(', '));
+  console.log('=== END SCORING ===\n');
 
   return points;
 }
