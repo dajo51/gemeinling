@@ -76,26 +76,41 @@ export async function initializeGame(gameId) {
   const gameData = gameSnapshot.data();
   const players = gameData.players;
 
-  if (players.length === 0) {
-    throw new Error('No players in the game!');
+  if (players.length < 2) {
+    throw new Error('Need at least 2 players to start!');
   }
 
-  const randomIndex = Math.floor(Math.random() * players.length);
-  const describingPlayer = players[randomIndex].name;
+  // Select random describing player
+  const randomDescribingIndex = Math.floor(Math.random() * players.length);
+  const describingPlayer = players[randomDescribingIndex].name;
+
+  // Select random player to be described (different from describing player)
+  let randomTargetIndex;
+  do {
+    randomTargetIndex = Math.floor(Math.random() * players.length);
+  } while (randomTargetIndex === randomDescribingIndex);
+  const playerToDescribe = players[randomTargetIndex].name;
 
   const initialPoints = players.map(player => ({
     name: player.name,
     points: 0
   }));
 
+  // Draw initial cards
+  const initialCards = [...deck]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 2)
+    .map((text, index) => ({ id: `card${index + 1}`, text, value: 0 }));
+
   await updateDoc(gameRef, {
     state: 'playing',
     describingPlayer,
+    playerToDescribe,
     currentPhase: 1,
     roundsLeft: players.length * 2,
-    currentCards: [],
+    currentCards: initialCards,
     points: initialPoints,
-    guesses: [] // Store guesses made by players during a round
+    guesses: []
   });
 }
 

@@ -124,30 +124,35 @@
     <h1>Describing Player: {gameData.describingPlayer}</h1>
   
     {#if gameData.describingPlayer === playerName}
-      <h2>Describe the Player</h2>
-      {#each gameData.currentCards as card}
-        <div>
-          <p>{card.text}</p>
-          <input
-            type="range"
-            min="1"
-            max="10"
-            value={card.value}
-            on:input={(e) => updateCardValue(card.id, e.target.value)}
-          />
-          <p>Value: {cardValues[card.id] || card.value}</p>
-        </div>
-      {/each}
-      <button on:click={handleSubmitDescription}>Submit Description</button>
-    {:else}
-      <h2>Make Your Guess</h2>
-      <select bind:value={currentGuess}>
-        <option value="">Select a player</option>
-        {#each gameData.players as player}
-          <option value={player.name}>{player.name}</option>
+      <h2>Describe Player: {gameData.playerToDescribe}</h2>
+      {#if gameData.currentCards && gameData.currentCards.length > 0}
+        {#each gameData.currentCards as card}
+          <div>
+            <p>{card.text}</p>
+            <input
+              type="range"
+              min="1"
+              max="5"
+              value={cardValues[card.id] || card.value}
+              on:input={(e) => updateCardValue(card.id, parseInt(e.target.value))}
+            />
+            <p>Value: {cardValues[card.id] || card.value}</p>
+          </div>
         {/each}
-      </select>
-      <button on:click={handleSubmitGuess}>Submit Guess</button>
+        <button on:click={handleSubmitDescription}>Submit Description</button>
+      {:else}
+        <p>Waiting for cards...</p>
+      {/if}
+    {:else}
+      <h2>Current Round</h2>
+      <p>Player being described: {gameData.playerToDescribe}</p>
+      {#if gameData.currentCards && gameData.currentCards.length > 0}
+        <div>
+          {#each gameData.currentCards as card}
+            <p>{card.text}: {card.value}</p>
+          {/each}
+        </div>
+      {/if}
     {/if}
   {:else if gameData.state === 'finished'}
     <h1>The Game is Over!</h1>
@@ -158,4 +163,3 @@
       {/each}
     </ul>
   {/if}
-  
