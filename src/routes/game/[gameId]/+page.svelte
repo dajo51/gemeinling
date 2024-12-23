@@ -114,7 +114,7 @@
       <div>
         <div>
           <h3>Current Scores:</h3>
-          {#if gameData?.points}
+          {#if gameData?.points && gameData.state !== 'finished'}
             <ul>
               {#each gameData.points.sort((a, b) => b.points - a.points) as player}
                 <li>{player.name}: {player.points} points</li>
@@ -253,13 +253,13 @@
             {/if}
           {:else if gameData.state === 'finished'}
             <h2>Game Over!</h2>
-            <h3>Final Scores:</h3>
+            <h3>Winner: {gameData.winner}!</h3>
+            <h4>Final Scores:</h4>
             <ul>
-              {#each gameData.points as playerPoints}
+              {#each gameData.points.sort((a, b) => b.points - a.points) as playerPoints}
                 <li>{playerPoints.name}: {playerPoints.points} points</li>
               {/each}
             </ul>
-            <p>The player being described was: {gameData.playerToDescribe}</p>
           {/if}
         </div>
       </div>

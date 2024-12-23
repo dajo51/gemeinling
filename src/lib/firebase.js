@@ -62,6 +62,144 @@ export async function joinGame(gameId, playerName) {
 }
 
 /**
+ * Starts the game by initializing the first round.
+ * @param {string} gameId - The ID of the game.
+ */
+export async function startGame(gameId) {
+  const gameRef = doc(db, 'games', gameId);
+  const gameSnapshot = await getDoc(gameRef);
+  
+  if (!gameSnapshot.exists()) {
+    throw new Error('Game not found');
+  }
+
+  const gameData = gameSnapshot.data();
+  
+  // Initialize the first round
+  await updateDoc(gameRef, {
+    state: 'playing',
+    currentRound: 1,
+    currentPhase: 'describing',
+    describingPlayer: gameData.players[0].name,
+    playerToDescribe: gameData.players[1].name,
+    points: gameData.players.map(p => ({ name: p.name, points: 0 })),
+    revealedCards: [],
+    guesses: {}
+  });
+}
+
+/**
+ * Submit a guess from a player
+ * @param {string} gameId - The ID of the game.
+ * @param {string} playerName - The name of the guessing player.
+ * @param {string} guess - The player's guess.
+ */
+export async function submitGuess(gameId, playerName, guess) {
+  const gameRef = doc(db, 'games', gameId);
+  const gameSnapshot = await getDoc(gameRef);
+
+  if (!gameSnapshot.exists()) {
+    throw new Error('Game not found!');
+  }
+
+  const gameData = gameSnapshot.data();
+  const guesses = { ...gameData.guesses };
+  const currentRound = gameData.currentRound;
+  const correctPlayer = gameData.playerToDescribe;
+
+  // Update or create the player's guess
+  if (!guesses[playerName]) {
+    guesses[playerName] = {
+      guess,
+      roundFirstGuessed: currentRound,
+      lastUpdatedRound: currentRound,
+      changed: false,
+      correct: guess === correctPlayer,
+      correctRound: guess === correctPlayer ? currentRound : null
+    };
+  } else {
+    const isNewGuess = guess !== guesses[playerName].guess;
+    const isCorrectNow = guess === correctPlayer;
+    guesses[playerName] = {
+      ...guesses[playerName],
+      guess,
+      lastUpdatedRound: currentRound,
+      changed: isNewGuess ? true : guesses[playerName].changed,
+      correct: isCorrectNow,
+      correctRound: isCorrectNow && guesses[playerName].correctRound === null ? currentRound : guesses[playerName].correctRound
+    };
+  }
+
+  // Check if all non-describing players have submitted guesses for the current round
+  const nonDescribingPlayers = gameData.players.filter(p => p.name !== gameData.describingPlayer);
+  const allGuessesSubmitted = nonDescribingPlayers.every(p => 
+    guesses[p.name]?.lastUpdatedRound === currentRound
+  );
+
+  if (allGuessesSubmitted) {
+    if (currentRound < 3) {
+      // Move to next round
+      await updateDoc(gameRef, {
+        guesses,
+        currentRound: currentRound + 1,
+        currentPhase: 'describing',
+        currentCards: gameData.nextCards || [],
+        nextCards: []
+      });
+    } else {
+      // End of 3 rounds, calculate points
+      const updatedPoints = calculateFinalPoints(gameData.points, guesses, gameData.playerToDescribe, gameData.describingPlayer);
+      
+      // Check if anyone has reached 7 points
+      const gameWon = updatedPoints.some(player => player.points >= 7);
+      
+      if (gameWon) {
+        // End the game
+        await updateDoc(gameRef, {
+          guesses,
+          points: updatedPoints,
+          state: 'finished',
+          winner: updatedPoints.reduce((highest, player) => 
+            player.points > highest.points ? player : highest
+          ).name
+        });
+      } else {
+        // Update points and start new round
+        await updateDoc(gameRef, {
+          guesses,
+          points: updatedPoints
+        });
+        await startNewRound(gameRef, { ...gameData, points: updatedPoints });
+      }
+    }
+  } else {
+    // Just update guesses
+    await updateDoc(gameRef, { guesses });
+  }
+}
+
+async function startNewRound(gameRef, gameData) {
+  // Get current indices
+  const currentDescriberIndex = gameData.players.findIndex(p => p.name === gameData.describingPlayer);
+  const currentDescribedIndex = gameData.players.findIndex(p => p.name === gameData.playerToDescribe);
+  
+  // Rotate clockwise
+  const nextDescriberIndex = (currentDescriberIndex + 1) % gameData.players.length;
+  const nextDescribedIndex = (currentDescribedIndex + 1) % gameData.players.length;
+  
+  // Reset game state for new round
+  await updateDoc(gameRef, {
+    currentRound: 1,
+    currentPhase: 'describing',
+    describingPlayer: gameData.players[nextDescriberIndex].name,
+    playerToDescribe: gameData.players[nextDescribedIndex].name,
+    revealedCards: [],
+    guesses: {},
+    state: 'playing'
+  });
+}
+
+/**
  * Initialize the game by selecting the first describing player and setting the state.
  * @param {string} gameId - The ID of the game.
  */
@@ -161,111 +299,6 @@ export async function submitPhase(gameId, cards) {
       nextCards: newCards
     });
   }
-}
-
-/**
- * Submit a guess from a player
- * @param {string} gameId - The ID of the game.
- * @param {string} playerName - The name of the guessing player.
- * @param {string} guess - The player's guess.
- */
-export async function submitGuess(gameId, playerName, guess) {
-  const gameRef = doc(db, 'games', gameId);
-  const gameSnapshot = await getDoc(gameRef);
-
-  if (!gameSnapshot.exists()) {
-    throw new Error('Game not found!');
-  }
-
-  const gameData = gameSnapshot.data();
-  const guesses = { ...gameData.guesses };
-  const currentRound = gameData.currentRound;
-  const correctPlayer = gameData.playerToDescribe;
-
-  // Update or create the player's guess
-  if (!guesses[playerName]) {
-    guesses[playerName] = {
-      guess,
-      roundFirstGuessed: currentRound,
-      lastUpdatedRound: currentRound,
-      changed: false,
-      correct: guess === correctPlayer,
-      correctRound: guess === correctPlayer ? currentRound : null
-    };
-  } else {
-    const isNewGuess = guess !== guesses[playerName].guess;
-    const isCorrectNow = guess === correctPlayer;
-    guesses[playerName] = {
-      ...guesses[playerName],
-      guess,
-      lastUpdatedRound: currentRound,
-      changed: isNewGuess ? true : guesses[playerName].changed,
-      correct: isCorrectNow,
-      correctRound: isCorrectNow && guesses[playerName].correctRound === null ? currentRound : guesses[playerName].correctRound
-    };
-  }
-
-  // Check if all non-describing players have submitted guesses for the current round
-  const nonDescribingPlayers = gameData.players.filter(p => p.name !== gameData.describingPlayer);
-  const allGuessesSubmitted = nonDescribingPlayers.every(p => 
-    guesses[p.name]?.lastUpdatedRound === currentRound
-  );
-
-  const updates = { guesses };
-
-  if (allGuessesSubmitted) {
-    if (currentRound < 3) {
-      // Move to next guessing round
-      updates.currentRound = currentRound + 1;
-      updates.currentPhase = 'describing';
-      updates.currentCards = gameData.nextCards || [];
-      updates.nextCards = [];
-      // Don't reset revealedCards here anymore
-    } else {
-      // End of 3 rounds, calculate points
-      const updatedPoints = calculateFinalPoints(gameData.points, guesses, gameData.playerToDescribe, gameData.describingPlayer);
-      updates.points = updatedPoints;
-      
-      // Check if anyone has reached 20 points
-      const gameWon = updatedPoints.some(player => player.points >= 20);
-      
-      if (gameWon) {
-        // End the game
-        updates.gameState = 'finished';
-        updates.winner = updatedPoints.reduce((highest, player) => 
-          player.points > highest.points ? player : highest
-        ).name;
-      } else {
-        // Start new round with rotated players
-        await updateDoc(gameRef, updates);
-        await startNewRound(gameRef, { ...gameData, points: updatedPoints });
-        return;
-      }
-    }
-  }
-
-  await updateDoc(gameRef, updates);
-}
-
-async function startNewRound(gameRef, gameData) {
-  // Get current indices
-  const currentDescriberIndex = gameData.players.findIndex(p => p.name === gameData.describingPlayer);
-  const currentDescribedIndex = gameData.players.findIndex(p => p.name === gameData.playerToDescribe);
-  
-  // Rotate clockwise
-  const nextDescriberIndex = (currentDescriberIndex + 1) % gameData.players.length;
-  const nextDescribedIndex = (currentDescribedIndex + 1) % gameData.players.length;
-  
-  // Reset game state for new round
-  await updateDoc(gameRef, {
-    currentRound: 1,
-    currentPhase: 'describing',
-    describingPlayer: gameData.players[nextDescriberIndex].name,
-    playerToDescribe: gameData.players[nextDescribedIndex].name,
-    revealedCards: [], // Only reset revealedCards when starting a completely new round
-    guesses: {},
-    gameState: 'active'
-  });
 }
 
 function calculateFinalPoints(currentPoints, guesses, correctPlayer, describingPlayer) {
