@@ -106,66 +106,15 @@ export async function initializeGame(gameId) {
     state: 'playing',
     describingPlayer,
     playerToDescribe,
-    currentPhase: 1,
-    roundsLeft: players.length * 2,
+    currentRound: 1,
+    currentPhase: 'describing', // phases: describing -> guessing -> next round
+    roundsLeft: 3,
     currentCards: initialCards,
     points: initialPoints,
-    guesses: []
+    guesses: {},  // Store guesses as {playerName: {guess: string, roundFirstGuessed: number}}
+    revealedCards: [], // Store all cards that have been revealed so far
+    waitingForGuesses: true
   });
-}
-
-/**
- * Draw two random cards for the current phase.
- * @param {string} gameId - The ID of the game.
- */
-export async function drawCards(gameId) {
-  const gameRef = doc(db, 'games', gameId);
-  const randomCards = [...deck]
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 2)
-    .map((text, index) => ({ id: `card${index + 1}`, text, value: 0 }));
-
-  await updateDoc(gameRef, {
-    currentCards: randomCards
-  });
-}
-
-/**
- * Submit the guesses from players and update the points.
- * @param {string} gameId - The ID of the game.
- * @param {Array} guesses - An array of guesses made by players.
- */
-export async function submitGuesses(gameId, guesses) {
-  const gameRef = doc(db, 'games', gameId);
-  const gameSnapshot = await getDoc(gameRef);
-
-  if (!gameSnapshot.exists()) {
-    throw new Error('Game not found!');
-  }
-
-  const gameData = gameSnapshot.data();
-  const { describingPlayer } = gameData;
-  let points = [...gameData.points];
-
-  guesses.forEach(guess => {
-    if (guess.correct) {
-      const player = points.find(p => p.name === guess.player);
-      if (gameData.currentPhase === 1) {
-        player.points += 3;
-      } else if (gameData.currentPhase === 2) {
-        player.points += 2;
-      } else {
-        player.points += 1;
-      }
-    }
-  });
-
-  const describer = points.find(p => p.name === describingPlayer);
-  if (guesses.filter(g => g.correct).length > guesses.length / 2) {
-    describer.points += 3; // Bonus for describer if more than half guess correctly
-  }
-
-  await updateDoc(gameRef, { points });
 }
 
 /**
@@ -182,32 +131,106 @@ export async function submitPhase(gameId, cards) {
   }
 
   const gameData = gameSnapshot.data();
-  const nextPhase = gameData.currentPhase + 1;
+  const updatedRevealedCards = [...(gameData.revealedCards || []), ...cards];
 
-  if (nextPhase <= 3) {
+  await updateDoc(gameRef, {
+    currentCards: cards,
+    revealedCards: updatedRevealedCards,
+    currentPhase: 'guessing',
+    waitingForGuesses: true
+  });
+
+  // Draw new cards if not the last round
+  if (gameData.currentRound < 3) {
+    const newCards = [...deck]
+      .filter(card => !updatedRevealedCards.some(rc => rc.text === card))
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 2)
+      .map((text, index) => ({ id: `card${index + 1}`, text, value: 0 }));
+
     await updateDoc(gameRef, {
-      currentPhase: nextPhase,
-      currentCards: cards
+      nextCards: newCards
     });
-  } else {
-    const players = gameData.players;
-    const currentDescriberIndex = players.findIndex(
-      player => player.name === gameData.describingPlayer
-    );
-    const nextDescriberIndex = (currentDescriberIndex + 1) % players.length;
+  }
+}
 
-    await updateDoc(gameRef, {
-      currentPhase: 1,
-      currentCards: [],
-      describingPlayer: players[nextDescriberIndex].name,
-      roundsLeft: gameData.roundsLeft - 1,
-      guesses: [] // Reset guesses for the next round
-    });
+/**
+ * Submit a guess from a player
+ * @param {string} gameId - The ID of the game.
+ * @param {string} playerName - The name of the guessing player.
+ * @param {string} guess - The player's guess.
+ */
+export async function submitGuess(gameId, playerName, guess) {
+  const gameRef = doc(db, 'games', gameId);
+  const gameSnapshot = await getDoc(gameRef);
 
-    if (gameData.roundsLeft - 1 === 0) {
+  if (!gameSnapshot.exists()) {
+    throw new Error('Game not found!');
+  }
+
+  const gameData = gameSnapshot.data();
+  const guesses = { ...gameData.guesses };
+  const currentRound = gameData.currentRound;
+
+  // Update or create the player's guess
+  if (!guesses[playerName]) {
+    guesses[playerName] = {
+      guess,
+      roundFirstGuessed: currentRound
+    };
+  } else if (guesses[playerName].guess !== guess) {
+    guesses[playerName].guess = guess;
+    guesses[playerName].changed = true;
+  }
+
+  // Check if all non-describing players have submitted guesses
+  const nonDescribingPlayers = gameData.players.filter(p => p.name !== gameData.describingPlayer);
+  const allGuessesSubmitted = nonDescribingPlayers.every(p => guesses[p.name]?.guess);
+
+  await updateDoc(gameRef, {
+    guesses,
+    waitingForGuesses: !allGuessesSubmitted
+  });
+
+  // If all guesses are in, proceed to next round or end game
+  if (allGuessesSubmitted) {
+    if (currentRound === 3) {
+      // Calculate final scores
+      const points = calculateFinalPoints(gameData.points, guesses, gameData.playerToDescribe);
       await updateDoc(gameRef, {
-        state: 'finished'
+        state: 'finished',
+        points
+      });
+    } else {
+      // Start next round
+      await updateDoc(gameRef, {
+        currentRound: currentRound + 1,
+        currentPhase: 'describing',
+        currentCards: gameData.nextCards || [],
+        nextCards: []
       });
     }
   }
+}
+
+function calculateFinalPoints(currentPoints, guesses, correctPlayer) {
+  const points = [...currentPoints];
+  
+  Object.entries(guesses).forEach(([playerName, guessData]) => {
+    if (guessData.guess === correctPlayer) {
+      const playerPoints = points.find(p => p.name === playerName);
+      if (playerPoints) {
+        // Award points based on when they first guessed correctly and if they changed their guess
+        if (guessData.roundFirstGuessed === 1 && !guessData.changed) {
+          playerPoints.points += 3;
+        } else if (guessData.roundFirstGuessed === 2 || (guessData.roundFirstGuessed === 1 && guessData.changed)) {
+          playerPoints.points += 2;
+        } else {
+          playerPoints.points += 1;
+        }
+      }
+    }
+  });
+
+  return points;
 }

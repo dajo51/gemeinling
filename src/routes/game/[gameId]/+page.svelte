@@ -1,6 +1,6 @@
 <script>
     import { onMount } from 'svelte';
-    import { db, createGame, joinGame, initializeGame, drawCards, submitPhase, submitGuesses } from '$lib/firebase';
+    import { db, createGame, joinGame, initializeGame, submitPhase, submitGuess } from '$lib/firebase';
     import { doc, onSnapshot } from 'firebase/firestore';
   
     export let data;
@@ -29,22 +29,7 @@
   
       return unsubscribe;
     });
-  
-    // Create a new game
-    async function handleCreateGame() {
-      if (!gameId) {
-        alert('Please enter a game ID');
-        return;
-      }
-      try {
-        await createGame(gameId);
-        alert('Game created successfully!');
-      } catch (error) {
-        console.error('Error creating game:', error);
-        alert('Failed to create the game.');
-      }
-    }
-  
+
     // Join the game
     async function handleJoinGame() {
       if (!playerName) {
@@ -58,7 +43,7 @@
         alert(error.message);
       }
     }
-  
+
     // Start the game
     async function handleStartGame() {
       try {
@@ -69,7 +54,6 @@
       }
     }
   
-    // Submit the description
     async function handleSubmitDescription() {
       try {
         const updatedCards = gameData.currentCards.map(card => ({
@@ -83,19 +67,19 @@
       }
     }
   
-    // Submit a guess
     async function handleSubmitGuess() {
+      if (!currentGuess) {
+        alert('Please select a player');
+        return;
+      }
       try {
-        await submitGuesses(gameId, [
-          { player: playerName, guess: currentGuess, correct: currentGuess === gameData.describingPlayer }
-        ]);
+        await submitGuess(gameId, playerName, currentGuess);
       } catch (error) {
         console.error('Error submitting guess:', error);
         alert('Failed to submit guess.');
       }
     }
   
-    // Update card values
     function updateCardValue(cardId, value) {
       cardValues[cardId] = value;
     }
@@ -121,45 +105,72 @@
       <p>Waiting for the host to start the game...</p>
     {/if}
   {:else if gameData.state === 'playing'}
-    <h1>Describing Player: {gameData.describingPlayer}</h1>
-  
+    <h1>Round {gameData.currentRound} of 3</h1>
+    
     {#if gameData.describingPlayer === playerName}
-      <h2>Describe Player: {gameData.playerToDescribe}</h2>
-      {#if gameData.currentCards && gameData.currentCards.length > 0}
-        {#each gameData.currentCards as card}
-          <div>
-            <p>{card.text}</p>
-            <input
-              type="range"
-              min="1"
-              max="5"
-              value={cardValues[card.id] || card.value}
-              on:input={(e) => updateCardValue(card.id, parseInt(e.target.value))}
-            />
-            <p>Value: {cardValues[card.id] || card.value}</p>
-          </div>
-        {/each}
-        <button on:click={handleSubmitDescription}>Submit Description</button>
-      {:else}
-        <p>Waiting for cards...</p>
-      {/if}
-    {:else}
-      <h2>Current Round</h2>
-      <p>Player being described: {gameData.playerToDescribe}</p>
-      {#if gameData.currentCards && gameData.currentCards.length > 0}
-        <div>
+      {#if gameData.currentPhase === 'describing'}
+        <h2>You are describing: {gameData.playerToDescribe}</h2>
+        {#if gameData.currentCards && gameData.currentCards.length > 0}
           {#each gameData.currentCards as card}
+            <div>
+              <p>{card.text}</p>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                value={cardValues[card.id] || card.value}
+                on:input={(e) => updateCardValue(card.id, parseInt(e.target.value))}
+              />
+              <p>Value: {cardValues[card.id] || card.value}</p>
+            </div>
+          {/each}
+          <button on:click={handleSubmitDescription}>Submit Description</button>
+        {/if}
+      {:else}
+        <h2>Waiting for players to make their guesses...</h2>
+        <div>
+          <h3>Previously Described Traits:</h3>
+          {#each gameData.revealedCards as card}
             <p>{card.text}: {card.value}</p>
           {/each}
         </div>
       {/if}
+    {:else}
+      {#if gameData.currentPhase === 'describing'}
+        <h2>Waiting for {gameData.describingPlayer} to describe...</h2>
+      {:else}
+        <h2>Make Your Guess</h2>
+        {#if gameData.revealedCards && gameData.revealedCards.length > 0}
+          <div>
+            <h3>Current Traits:</h3>
+            {#each gameData.revealedCards as card}
+              <p>{card.text}: {card.value}</p>
+            {/each}
+          </div>
+        {/if}
+        
+        {#if !gameData.guesses[playerName] || gameData.currentRound > gameData.guesses[playerName].roundFirstGuessed}
+          <select bind:value={currentGuess}>
+            <option value="">Select a player</option>
+            {#each gameData.players.filter(p => p.name !== gameData.describingPlayer) as player}
+              <option value={player.name}>{player.name}</option>
+            {/each}
+          </select>
+          <button on:click={handleSubmitGuess}>Submit Guess</button>
+        {:else}
+          <p>Your current guess: {gameData.guesses[playerName].guess}</p>
+          <button on:click={() => currentGuess = ''}>Change Guess</button>
+        {/if}
+      {/if}
     {/if}
   {:else if gameData.state === 'finished'}
-    <h1>The Game is Over!</h1>
+    <h1>Game Over!</h1>
     <h2>Final Scores:</h2>
     <ul>
       {#each gameData.points as playerPoints}
         <li>{playerPoints.name}: {playerPoints.points} points</li>
       {/each}
     </ul>
+    
+    <h3>The player being described was: {gameData.playerToDescribe}</h3>
   {/if}
