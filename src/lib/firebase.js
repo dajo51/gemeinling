@@ -15,24 +15,20 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
-const deck = [
-  "freundlich",
-  "diszipliniert",
-  "kreativ",
-  "chaotisch",
-  "hilfsbereit",
-  "stur",
-  "ruhig",
-  "gesprächig",
-  "ehrgeizig",
-  "faul",
-  "entspannt",
-  "aufmerksam"
-];
+async function getDeck(deckName = 'standard') {
+  const deckRef = doc(db, 'decks', deckName);
+  const deckDoc = await getDoc(deckRef);
+  
+  if (!deckDoc.exists()) {
+    throw new Error(`Deck ${deckName} not found`);
+  }
+  
+  return deckDoc.data().cards;
+}
 
 /**
  * Creates a new game in Firestore.
- * @param {string} gameId - The ID of the new game.
+ * @param {string} gameId - The ID of the game.
  */
 export async function createGame(gameId) {
   const gameRef = doc(collection(db, 'games'), gameId);
@@ -40,6 +36,69 @@ export async function createGame(gameId) {
     state: 'lobby',
     players: [],
     createdAt: new Date().toISOString()
+  });
+}
+
+/**
+ * Initialize the game by selecting the first describing player and setting the state.
+ * @param {string} gameId - The ID of the game.
+ */
+export async function initializeGame(gameId) {
+  const gameRef = doc(db, 'games', gameId);
+  const gameSnapshot = await getDoc(gameRef);
+
+  if (!gameSnapshot.exists()) {
+    throw new Error('Game not found!');
+  }
+
+  const gameData = gameSnapshot.data();
+  const players = gameData.players;
+
+  if (players.length < 2) {
+    throw new Error('Need at least 2 players to start!');
+  }
+
+  // Get the standard deck
+  const deck = await getDeck();
+  const shuffledCards = [...deck].sort(() => Math.random() - 0.5);
+
+  // Select random describing player
+  const randomDescribingIndex = Math.floor(Math.random() * players.length);
+  const describingPlayer = players[randomDescribingIndex].name;
+
+  // Select random player to be described (different from describing player)
+  let randomTargetIndex;
+  do {
+    randomTargetIndex = Math.floor(Math.random() * players.length);
+  } while (randomTargetIndex === randomDescribingIndex);
+  const playerToDescribe = players[randomTargetIndex].name;
+
+  const initialPoints = players.map(player => ({
+    name: player.name,
+    points: 0
+  }));
+
+  // Draw initial cards
+  const initialCards = shuffledCards
+    .slice(0, 2)
+    .map((text, index) => ({ id: `card${index + 1}`, text, value: 0 }));
+
+  const nextCards = shuffledCards
+    .slice(2, 4)
+    .map((text, index) => ({ id: `card${index + 1}`, text, value: 0 }));
+
+  await updateDoc(gameRef, {
+    state: 'playing',
+    describingPlayer,
+    playerToDescribe,
+    currentRound: 1,
+    currentPhase: 'describing',
+    currentCards: initialCards,
+    nextCards: nextCards,
+    deck: shuffledCards.slice(4),
+    points: initialPoints,
+    guesses: {},
+    revealedCards: []
   });
 }
 
@@ -83,8 +142,7 @@ export async function startGame(gameId) {
     describingPlayer: gameData.players[0].name,
     playerToDescribe: gameData.players[1].name,
     points: gameData.players.map(p => ({ name: p.name, points: 0 })),
-    revealedCards: [],
-    guesses: {}
+    revealedCards: []
   });
 }
 
@@ -187,6 +245,21 @@ async function startNewRound(gameRef, gameData) {
   const nextDescriberIndex = (currentDescriberIndex + 1) % gameData.players.length;
   const nextDescribedIndex = (currentDescribedIndex + 1) % gameData.players.length;
   
+  // Get fresh deck for new round
+  const deck = await getDeck();
+  const shuffledCards = [...deck].sort(() => Math.random() - 0.5);
+  const initialCards = shuffledCards.slice(0, 2).map((text, index) => ({
+    id: `card${index + 1}`,
+    text,
+    value: 0
+  }));
+
+  const nextCards = shuffledCards.slice(2, 4).map((text, index) => ({
+    id: `card${index + 1}`,
+    text,
+    value: 0
+  }));
+  
   // Reset game state for new round
   await updateDoc(gameRef, {
     currentRound: 1,
@@ -195,63 +268,10 @@ async function startNewRound(gameRef, gameData) {
     playerToDescribe: gameData.players[nextDescribedIndex].name,
     revealedCards: [],
     guesses: {},
-    state: 'playing'
-  });
-}
-
-/**
- * Initialize the game by selecting the first describing player and setting the state.
- * @param {string} gameId - The ID of the game.
- */
-export async function initializeGame(gameId) {
-  const gameRef = doc(db, 'games', gameId);
-  const gameSnapshot = await getDoc(gameRef);
-
-  if (!gameSnapshot.exists()) {
-    throw new Error('Game not found!');
-  }
-
-  const gameData = gameSnapshot.data();
-  const players = gameData.players;
-
-  if (players.length < 2) {
-    throw new Error('Need at least 2 players to start!');
-  }
-
-  // Select random describing player
-  const randomDescribingIndex = Math.floor(Math.random() * players.length);
-  const describingPlayer = players[randomDescribingIndex].name;
-
-  // Select random player to be described (different from describing player)
-  let randomTargetIndex;
-  do {
-    randomTargetIndex = Math.floor(Math.random() * players.length);
-  } while (randomTargetIndex === randomDescribingIndex);
-  const playerToDescribe = players[randomTargetIndex].name;
-
-  const initialPoints = players.map(player => ({
-    name: player.name,
-    points: 0
-  }));
-
-  // Draw initial cards
-  const initialCards = [...deck]
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 2)
-    .map((text, index) => ({ id: `card${index + 1}`, text, value: 0 }));
-
-  await updateDoc(gameRef, {
     state: 'playing',
-    describingPlayer,
-    playerToDescribe,
-    currentRound: 1,
-    currentPhase: 'describing', // phases: describing -> guessing -> next round
-    roundsLeft: 3,
     currentCards: initialCards,
-    points: initialPoints,
-    guesses: {},  // Store guesses as {playerName: {guess: string, roundFirstGuessed: number}}
-    revealedCards: [], // Store all cards that have been revealed so far
-    waitingForGuesses: true
+    nextCards: nextCards,
+    deck: shuffledCards.slice(4)
   });
 }
 
@@ -271,7 +291,7 @@ export async function submitPhase(gameId, cards) {
   const gameData = gameSnapshot.data();
   const currentRevealedCards = gameData.revealedCards || [];
 
-  // Add new cards to revealed cards instead of replacing
+  // Add new cards to revealed cards
   await updateDoc(gameRef, {
     currentPhase: 'guessing',
     currentCards: cards,
@@ -280,23 +300,14 @@ export async function submitPhase(gameId, cards) {
 
   // Draw new cards if not the last round
   if (gameData.currentRound < 3) {
-    const deck = [
-      "friendly", "funny", "smart", "creative", "energetic",
-      "calm", "organized", "adventurous", "caring", "confident",
-      "patient", "ambitious", "honest", "generous", "reliable",
-      "thoughtful", "enthusiastic", "determined", "flexible", "responsible"
-    ];
-
-    const usedCards = [...currentRevealedCards, ...cards].map(c => c.text);
-    const availableCards = deck.filter(card => !usedCards.includes(card));
-    
-    const newCards = availableCards
-      .sort(() => Math.random() - 0.5)
+    const remainingDeck = gameData.deck || [];
+    const newCards = remainingDeck
       .slice(0, 2)
       .map((text, index) => ({ id: `card${index + 1}`, text, value: 0 }));
 
     await updateDoc(gameRef, {
-      nextCards: newCards
+      nextCards: newCards,
+      deck: remainingDeck.slice(2) // Update remaining deck
     });
   }
 }
